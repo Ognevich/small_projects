@@ -110,6 +110,8 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    int duplicates = 0;
+
     int files_capacity = 1;
     int files_size = 0;
     File_info * files = malloc(sizeof(File_info) * files_capacity);
@@ -152,6 +154,24 @@ int main(int argc, char *argv[])
     }
 
     print_files_info(files,files_size);
+
+    for (int i = 0; i < files_size - 1; i++)
+    {
+        for (int j = i + 1; j < files_size; j++)
+        {
+            if (memcmp(files[i].hash, files[j].hash, HASH_SIZE) == 0)
+            {
+                duplicates++;
+                printf("Duplicate found:\n%s\n%s\n\n",
+                    files[i].filepath,
+                    files[j].filepath);
+            }
+        }
+    }
+
+
+
+    printf("DUPLICATES: %d\n", duplicates);
 
     free_files_info(files);
     closedir(dir);
