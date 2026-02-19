@@ -8,7 +8,7 @@
 #define BUFFER_SIZE 4096
 #define FILE_TEXT_BUFFER 16384
 
-#define HASH_SIZE 16
+#define HASH_SIZE SHA256_DIGEST_LENGTH
 //PROGRAM FINDS ALL FILE WITH SAME SIZE
 // ./duplicate_finder /home/Desktop - path
 
@@ -19,11 +19,11 @@ typedef struct{
     long long file_size;
 }File_info;
 
-static int is_obj_a_file(const char * file_path, struct stat st, struct dirent * de)
+static int is_obj_a_file(const char * file_path, struct stat * st, struct dirent * de)
 {
-    if (stat(file_path,&st) == 0)
+    if (stat(file_path,st) == 0)
     {
-        if (S_ISREG(st.st_mode))
+        if (S_ISREG(st->st_mode))
             return 1;
     }
     return 0;
@@ -31,7 +31,7 @@ static int is_obj_a_file(const char * file_path, struct stat st, struct dirent *
 
 static int calculate_file_hash(const char * file_path, unsigned char * hash)
 {
-    FILE * f = fopen(file_path, "r");
+    FILE * f = fopen(file_path, "rb");
 
     if (!f)
     {
@@ -72,9 +72,34 @@ static void increase_files(int * size, int * capacity, File_info ** files)
     
     }
     
-    *(size++);    
+    (*size)++;    
 
 }
+
+static void free_files_info(File_info * files)
+{
+    free(files);
+    files = NULL;
+}
+
+// FOR DEBUG
+static void print_files_info(File_info * files,int files_size)
+{
+    for (int i = 0; i < files_size; i++)
+    {
+        File_info file = files[i];
+        printf("file hash: \n");
+        for (int j = 0; j < HASH_SIZE; j++)
+        {
+            printf("%02x", file.hash[j]);
+        }
+        printf("\n");
+
+        printf("file path: %s\n", file.filepath);
+        printf("file size: %lld\n", file.file_size);
+    }
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -85,9 +110,9 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    File_info * files = NULL;
     int files_capacity = 1;
     int files_size = 0;
+    File_info * files = malloc(sizeof(File_info) * files_capacity);
 
     DIR * dir = opendir(argv[1]);
     struct dirent *de;
@@ -108,9 +133,9 @@ int main(int argc, char *argv[])
 
         snprintf(file_path, BUFFER_SIZE, "%s/%s", argv[1], de->d_name);    
 
-        if (is_obj_a_file(file_path,st,de))
+        if (is_obj_a_file(file_path,&st,de))
         {
-            increase_files(files_size,files_capacity,&files);
+            increase_files(&files_size,&files_capacity,&files);
             File_info file;
 
 
@@ -118,7 +143,7 @@ int main(int argc, char *argv[])
                 return 0;
 
             strcpy(file.filepath, file_path);
-            file.file_size = st.st_size;
+            file.file_size = (long long)st.st_size;
 
             files[files_size-1] = file;
 
@@ -126,7 +151,9 @@ int main(int argc, char *argv[])
 
     }
 
+    print_files_info(files,files_size);
 
+    free_files_info(files);
     closedir(dir);
     return 0;
 }
