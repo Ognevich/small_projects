@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define FILE_PATH_BUFFER 4096
 #define FILE_NAME_BUFFER 255
@@ -13,13 +14,44 @@ typedef struct
     uint32_t file_size;
 }File_data;
 
-static int parse_files_data(File_data **files, int *files_size)
+static int extract_file_name(const char * filepath, char * filename)
 {
-    *files = malloc(sizeof(File_data));
-    if (!*files)
-        return 0;
+    strtok(filepath, "/");
+}
 
-    *files_size = 1;
+
+static int parse_files_data(File_data **files, int *files_size, const char ** argv, const int argc)
+{
+    File_data * tmp = malloc(sizeof(File_data));
+    if (!tmp)
+        return 0;
+    *files_size = 0;
+    int capacity = 1;
+
+    for (int i = 2; i < argc; i++)
+    {
+        if (capacity <= *files_size)
+        {
+            capacity *= 2;
+            tmp = realloc(tmp, sizeof(File_data ) * 2);
+            if (!tmp)
+                return 0;
+        }
+
+        char filepath[FILE_PATH_BUFFER];        
+        char filename[FILE_NAME_BUFFER];
+        
+        strcpy(filepath, argv[i]);
+        if (!extract_file_name(filepath, filename))
+        {
+            return 0;
+        }
+
+        
+        *files_size++;
+    }
+
+    *files = tmp;
     return 1;
 }
 
@@ -34,7 +66,7 @@ int main(int argc, char * argv[])
 
     int files_size = 0;
     File_data * files = NULL;
-    if (!parse_files_data(&files,&files_size))
+    if (!parse_files_data(&files,&files_size, argv, argc))
     {
         return 1;
     }
