@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #define FILE_PATH_BUFFER 4096
 #define FILE_NAME_BUFFER 255
@@ -14,13 +15,38 @@ typedef struct
     uint32_t file_size;
 }File_data;
 
-static int extract_file_name(const char * filepath, char * filename)
+
+static int is_file(const char * filename)
 {
-    strtok(filepath, "/");
+    struct stat st;
+
+    if (stat(filename,&st) == 0)
+    {
+        if (S_ISREG(st.st_mode))
+            return 1;
+    }
+    return 0;
 }
 
+static int extract_file_name(const char *filepath, char *filename) 
+{
+    const char *slash = strrchr(filepath, '/');
 
-static int parse_files_data(File_data **files, int *files_size, const char ** argv, const int argc)
+    if (slash != NULL)
+        strcpy(filename, slash + 1);
+    else
+        strcpy(filename, filepath);
+
+    if (!is_file(filepath))  
+    {
+        printf("Object %s is not a file\n", filepath);
+        return 0;
+    }
+
+    return 1;
+}
+
+static int parse_files_data(File_data **files, int *files_size, char ** argv, int argc)
 {
     File_data * tmp = malloc(sizeof(File_data));
     if (!tmp)
@@ -46,7 +72,6 @@ static int parse_files_data(File_data **files, int *files_size, const char ** ar
         {
             return 0;
         }
-
         
         *files_size++;
     }
@@ -71,6 +96,8 @@ int main(int argc, char * argv[])
         return 1;
     }
 
+    free(files);
+    files = NULL;
 
     return 0;
 }
