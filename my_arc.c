@@ -17,11 +17,11 @@ typedef struct
 }File_data;
 
 
-static int is_file(const char *filename)
+static int is_file(const char *filepath)
 {
     struct stat st;
 
-    if (stat(filename, &st) == 0)
+    if (stat(filepath, &st) == 0)
     {
         if (S_ISREG(st.st_mode))
         {
@@ -29,13 +29,13 @@ static int is_file(const char *filename)
         }
         else
         {
-            printf("object %s is not a file\n", filename);
+            printf("object %s is not a file\n", filepath);
             return 0;
         }
     }
     else
     {
-        printf("object %s doesn't exist\n", filename);
+        printf("object %s doesn't exist\n", filepath);
         return 0;
     }
 }
@@ -44,17 +44,18 @@ static void extract_filename(char * filepath, char * filename)
 {
     const char *slash = strrchr(filepath, '/');
 
-    if (slash != NULL)
-        strcpy(filename, slash + 1);
-    else
-        strcpy(filename, filepath);
+    const char * name = slash ? slash + 1 : filepath;
+
+    strncpy (filename, name,FILE_NAME_BUFFER-1);
+    filename[FILE_NAME_BUFFER-1]='\0';
 
 }
 
 static void get_file_size(const char * filepath, off_t * file_size)
 {
     struct stat st;
-    stat(filepath,&st);
+    if (stat(filepath, &st) != 0)
+        return;
     *file_size = st.st_size;
 }
        
@@ -84,6 +85,20 @@ static inline int increase_files(File_data **files, int *files_size, int *capaci
     return 1;
 }
 
+static int execute_file_adding(File_data * file_data, char ** argv, int index)
+{
+        strncpy(file_data->filepath, argv[index], FILE_PATH_BUFFER-1);
+        file_data->filepath[FILE_PATH_BUFFER-1] = '\0';
+
+        if (!is_file(file_data->filepath)) {
+            return 0;
+        }
+        
+        extract_filename(file_data->filepath,file_data->filename);
+        get_file_size(file_data->filepath, &file_data->file_size);
+
+        return 1;
+}
 
 static int parse_files_data(File_data **files, int *files_size, char ** argv, int argc)
 {
@@ -95,28 +110,18 @@ static int parse_files_data(File_data **files, int *files_size, char ** argv, in
     int capacity = 1;
 
     for (int i = 2; i < argc; i++)
-    {
+    {    
         if (!increase_files(&tmp, &size, &capacity))
-            return 0;
-
-        char filepath[FILE_PATH_BUFFER];
-        char filename[FILE_NAME_BUFFER];
-        off_t file_size = 0;
-        
-        strcpy(filepath, argv[i]);
-
-        if (!is_file(filepath)) {
+        {
             free(tmp);
             return 0;
         }
-        
-        extract_filename(filepath,filename);
-        get_file_size(filepath, &file_size);
 
-
-        strcpy(tmp[size].filepath, filepath);
-        strcpy(tmp[size].filename, filename);
-        tmp[size].file_size = file_size;
+        if (!execute_file_adding(&tmp[size],argv,i))
+        {
+            free(tmp);
+            return 0;
+        }
 
         size++;
     }
