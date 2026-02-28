@@ -5,6 +5,13 @@
 #include <sys/stat.h>
 #include <inttypes.h>
 
+#ifdef _WIN32
+    #include <direct.h>
+#else
+    #include <unistd.h>
+#endif
+
+
 #define FILE_PATH_BUFFER 4096
 #define FILE_NAME_BUFFER 255
 
@@ -69,7 +76,7 @@ static inline void free_files(File_data **files)
     }
 }
 
-static inline int increase_files(File_data **files, int *files_size, int *capacity)
+static inline int increase_files(File_data **files, size_t *files_size, size_t *capacity)
 {
     if (*files_size >= *capacity)
     {
@@ -100,14 +107,14 @@ static int execute_file_adding(File_data * file_data, char ** argv, int index)
         return 1;
 }
 
-static int parse_files_data(File_data **files, int *files_size, char ** argv, int argc)
+static int parse_files_data(File_data **files, size_t *files_size, char ** argv, int argc)
 {
     File_data * tmp = malloc(sizeof(File_data));
     if (!tmp)
         return 0;
 
-    int size     = 0;
-    int capacity = 1;
+    size_t size     = 0;
+    size_t capacity = 1;
 
     for (int i = 2; i < argc; i++)
     {    
@@ -131,6 +138,66 @@ static int parse_files_data(File_data **files, int *files_size, char ** argv, in
     return 1;
 }
 
+static char * get_current_filepath()
+{
+    char *cwd = getcwd(NULL, 0);
+    if (!cwd)
+    {
+        perror("getcwd");
+        return NULL;
+    }
+    return cwd;
+
+}
+
+static int pack_files(File_data *files, size_t files_size)
+{
+    char *filepath = get_current_filepath();
+    if (!filepath)
+        return 0;
+
+    const char *cur_filename = "test_file";
+
+    char full_path[FILE_PATH_BUFFER];
+    snprintf(full_path, sizeof(full_path), "%s/%s", filepath, cur_filename);
+
+    FILE *file_st = fopen(full_path, "wb");
+    if (!file_st)
+    {
+        free(filepath);
+        return 0;
+    }
+
+    size_t written = fwrite(files, sizeof(*files), files_size, file_st);
+    if (written != files_size)
+    {
+        fclose(file_st);
+        free(filepath);
+        return 0;
+    }
+
+    fclose(file_st);
+    free(filepath);
+
+    return 1;
+}
+
+////////DEBUGGING///////////
+
+static void printf_files(File_data * files, size_t files_size)
+{
+    for (int i = 0; i < files_size; i++)
+    {
+        printf("filepath %s\n", files[i].filepath);
+        printf("filename %s\n", files[i].filename);
+        printf("file size: %" PRIdMAX "\n", (intmax_t)files[i].file_size);
+        printf("\n");
+    }
+}
+
+////////////////////////////
+
+
 int main(int argc, char * argv[])
 {
     if (argc < 3)
@@ -139,22 +206,15 @@ int main(int argc, char * argv[])
         return 1;
     }
 
-    int files_size = 0;
+    size_t files_size = 0;
     File_data * files = NULL;
 
     if (!parse_files_data(&files,&files_size, argv, argc))
         return 1;
-    
+        
+    printf_files(files,files_size);
 
-    for (int i = 0; i < files_size; i++)
-    {
-        printf("filepath %s\n", files[i].filepath);
-        printf("filename %s\n", files[i].filename);
-        printf("file size: %" PRIdMAX "\n", (intmax_t)files[i].file_size);
-        printf("\n");
-    }
-
-
+    pack_files(files, files_size);
 
     free_files(&files);
     return 0;
