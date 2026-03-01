@@ -13,6 +13,7 @@
 
 
 #define FILE_PATH_BUFFER 4096
+#define UPLOAD_SIZE      4096
 #define FILE_NAME_BUFFER 255
 
 typedef struct 
@@ -153,34 +154,57 @@ static char * get_current_filepath()
 static int pack_files(File_data *files, size_t files_size)
 {
     char *filepath = get_current_filepath();
-    if (!filepath)
-        return 0;
+    if (!filepath) return 0;
 
-    const char *cur_filename = "test_file";
-
+    const char *archive_name = "test_file";
     char full_path[FILE_PATH_BUFFER];
-    snprintf(full_path, sizeof(full_path), "%s/%s", filepath, cur_filename);
+    snprintf(full_path, sizeof(full_path), "%s/%s", filepath, archive_name);
 
-    FILE *file_st = fopen(full_path, "wb");
-    if (!file_st)
-    {
+    FILE *archive = fopen(full_path, "wb");
+    if (!archive) {
         free(filepath);
         return 0;
     }
 
-    size_t written = fwrite(files, sizeof(*files), files_size, file_st);
-    if (written != files_size)
+    for (size_t i = 0; i < files_size; i++)
     {
-        fclose(file_st);
-        free(filepath);
-        return 0;
+        size_t name_len = strlen(files[i].filename);
+        fwrite(&name_len, sizeof(size_t), 1, archive);
+
+        fwrite(files[i].filename, 1, name_len, archive);
+
+        FILE *current_file = fopen(files[i].filepath, "rb");
+        if (!current_file) {
+            perror("Can't open file");
+            fclose(archive);
+            free(filepath);
+            return 0;
+        }
+
+        fseek(current_file, 0, SEEK_END);
+        size_t file_size = ftell(current_file);
+        rewind(current_file);
+
+        fwrite(&file_size, sizeof(size_t), 1, archive);
+
+        unsigned char buffer[UPLOAD_SIZE];
+        size_t bytes_read;
+        while ((bytes_read = fread(buffer, 1, sizeof(buffer), current_file)) > 0)
+        {
+            fwrite(buffer, 1, bytes_read, archive);
+        }
+
+        fclose(current_file);
     }
 
-    fclose(file_st);
+    fclose(archive);
     free(filepath);
-
     return 1;
 }
+
+
+
+
 
 ////////DEBUGGING///////////
 
