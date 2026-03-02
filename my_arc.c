@@ -16,6 +16,9 @@
 #define UPLOAD_SIZE      4096
 #define FILE_NAME_BUFFER 255
 
+#define PACK_START_POS 3
+
+
 typedef struct 
 {
     char filepath[FILE_PATH_BUFFER];
@@ -117,7 +120,7 @@ static int parse_files_data(File_data **files, size_t *files_size, char ** argv,
     size_t size     = 0;
     size_t capacity = 1;
 
-    for (int i = 2; i < argc; i++)
+    for (int i = PACK_START_POS; i < argc; i++)
     {    
         if (!increase_files(&tmp, &size, &capacity))
         {
@@ -139,6 +142,7 @@ static int parse_files_data(File_data **files, size_t *files_size, char ** argv,
     return 1;
 }
 
+
 static char * get_current_filepath()
 {
     char *cwd = getcwd(NULL, 0);
@@ -151,14 +155,53 @@ static char * get_current_filepath()
 
 }
 
-static int pack_files(File_data *files, size_t files_size)
+static int check_filename_validation(char * filename)
+{
+
+    char * type = strrchr(filename, '.');
+    printf("%s\n",type);
+    if (strcmp(type, ".myarc") != 0)
+    {
+        printf("Error: unknown file extension %s\n", type);
+        return 0;
+    }
+
+
+    return 1;
+}
+
+////////DEBUGGING///////////
+
+static inline void print_size_info(size_t raw_size, off_t archieve_size)
+{
+    printf("Raw size: %zu\n", raw_size);
+    printf("file size: %" PRIdMAX "\n", (intmax_t)archieve_size);
+}
+
+static void printf_files(File_data * files, size_t files_size)
+{
+    for (int i = 0; i < files_size; i++)
+    {
+        printf("filepath %s\n", files[i].filepath);
+        printf("filename %s\n", files[i].filename);
+        printf("file size: %" PRIdMAX "\n", (intmax_t)files[i].file_size);
+        printf("\n");
+    }
+}
+
+////////////////////////////
+
+static int pack_files(File_data *files, size_t files_size, char * pack_name)
 {
     char *filepath = get_current_filepath();
     if (!filepath) return 0;
 
-    const char *archive_name = "test_file";
+    const char *archive_name = pack_name;
     char full_path[FILE_PATH_BUFFER];
     snprintf(full_path, sizeof(full_path), "%s/%s", filepath, archive_name);
+
+    size_t raw_size = 0;
+    off_t archieve_size = 0;
 
     FILE *archive = fopen(full_path, "wb");
     if (!archive) {
@@ -185,6 +228,8 @@ static int pack_files(File_data *files, size_t files_size)
         size_t file_size = ftell(current_file);
         rewind(current_file);
 
+        raw_size += file_size;
+
         fwrite(&file_size, sizeof(size_t), 1, archive);
 
         unsigned char buffer[UPLOAD_SIZE];
@@ -197,49 +242,52 @@ static int pack_files(File_data *files, size_t files_size)
         fclose(current_file);
     }
 
+    get_file_size(full_path, &archieve_size);
+    print_size_info(raw_size, archieve_size);
+
     fclose(archive);
     free(filepath);
     return 1;
 }
 
-
-
-
-
-////////DEBUGGING///////////
-
-static void printf_files(File_data * files, size_t files_size)
+static int unpack(char * location)
 {
-    for (int i = 0; i < files_size; i++)
-    {
-        printf("filepath %s\n", files[i].filepath);
-        printf("filename %s\n", files[i].filename);
-        printf("file size: %" PRIdMAX "\n", (intmax_t)files[i].file_size);
-        printf("\n");
-    }
+
+
+    return 1;
 }
 
-////////////////////////////
 
 
 int main(int argc, char * argv[])
 {
-    if (argc < 3)
+    if (argc < 4)
     {
         printf("Error: insufficient argument type\n");
         return 1;
     }
 
-    size_t files_size = 0;
-    File_data * files = NULL;
+    if (strcmp(argv[1], "pack") == 0)
+    {
+        size_t files_size = 0;
+        File_data * files = NULL;
 
-    if (!parse_files_data(&files,&files_size, argv, argc))
-        return 1;
+        char * pack_name = argv[2];
+        if (!check_filename_validation(pack_name))
+            return 1;
         
-    printf_files(files,files_size);
 
-    pack_files(files, files_size);
+        if (!parse_files_data(&files,&files_size, argv, argc))
+            return 1;
+            
+        printf_files(files,files_size);
+        pack_files(files, files_size, pack_name);
 
-    free_files(&files);
+        free_files(&files);
+    }
+    else if (strcmp(argv[1], "unpack") == 0)
+    {
+
+    }
     return 0;
 }
