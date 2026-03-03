@@ -209,8 +209,11 @@ static int pack_files(File_data *files, size_t files_size, char * pack_name)
         return 0;
     }
 
+    fwrite(&files_size,sizeof(size_t),1,archive);
+
     for (size_t i = 0; i < files_size; i++)
     {
+
         size_t name_len = strlen(files[i].filename);
         fwrite(&name_len, sizeof(size_t), 1, archive);
 
@@ -250,9 +253,46 @@ static int pack_files(File_data *files, size_t files_size, char * pack_name)
     return 1;
 }
 
-static int unpack(char * location)
+static int unpack(char * path,char * location)
 {
 
+    FILE * archieve_file_stream = fopen(path, "rb");
+
+    char current_dir = get_current_filepath();
+
+
+    size_t files_count = 0;
+
+    fread(&files_count, sizeof(size_t), 1, archieve_file_stream);
+    printf("%zu", files_count);
+
+    for ( int i = 0; i < files_count; i++)
+    {
+        size_t filename_size;
+        fread(&filename_size, sizeof(size_t), 1, archieve_file_stream);
+        
+        char * filename = malloc(filename_size+1);
+
+        fread(filename,1, filename_size, archieve_file_stream);
+        filename[filename_size] = '\0';
+    
+        size_t filesize = 0;
+
+        char full_new_file_path[FILE_PATH_BUFFER];
+        snprintf(full_new_file_path,FILE_PATH_BUFFER,"%s/%s", current_dir, filename);
+
+        FILE * new_file_stream = fopen(full_new_file_path,"w");
+
+        char temp_data_buffer[UPLOAD_SIZE];
+
+
+
+        fclose(new_file_stream);
+
+        free(filename);
+    }
+
+    fclose(archieve_file_stream);
 
     return 1;
 }
@@ -287,7 +327,7 @@ int main(int argc, char * argv[])
     }
     else if (strcmp(argv[1], "unpack") == 0)
     {
-
+        unpack("arc.myarc", get_current_filepath());
     }
     return 0;
 }
