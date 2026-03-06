@@ -191,7 +191,7 @@ static void printf_files(File_data * files, size_t files_size)
 
 ////////////////////////////
 
-static int pack_files(File_data *files, size_t files_size, char * pack_name)
+static int pack_files(File_data *files, size_t file_size, char * pack_name)
 {
     char *filepath = get_current_filepath();
     if (!filepath) return 0;
@@ -209,9 +209,9 @@ static int pack_files(File_data *files, size_t files_size, char * pack_name)
         return 0;
     }
 
-    fwrite(&files_size,sizeof(size_t),1,archive);
+    fwrite(&file_size,sizeof(size_t),1,archive);
 
-    for (size_t i = 0; i < files_size; i++)
+    for (size_t i = 0; i < file_size; i++)
     {
 
         size_t name_len = strlen(files[i].filename);
@@ -228,12 +228,12 @@ static int pack_files(File_data *files, size_t files_size, char * pack_name)
         }
 
         fseek(current_file, 0, SEEK_END);
-        size_t file_size = ftell(current_file);
+        size_t files_size = ftell(current_file);
         rewind(current_file);
 
-        raw_size += file_size;
+        raw_size += files_size;
 
-        fwrite(&file_size, sizeof(size_t), 1, archive);
+        fwrite(&files_size, sizeof(size_t), 1, archive);
 
         unsigned char buffer[UPLOAD_SIZE];
         size_t bytes_read;
@@ -253,18 +253,23 @@ static int pack_files(File_data *files, size_t files_size, char * pack_name)
     return 1;
 }
 
-static int unpack(char * path,char * location)
+static int unpack(char * path)
 {
 
     FILE * archieve_file_stream = fopen(path, "rb");
+    if (!archieve_file_stream)
+    {
+        perror("Invalid filepath\n");
+        return 0;
+    }
 
-    char current_dir = get_current_filepath();
+
+    char* current_dir = get_current_filepath();
 
 
     size_t files_count = 0;
 
     fread(&files_count, sizeof(size_t), 1, archieve_file_stream);
-    printf("%zu", files_count);
 
     for ( int i = 0; i < files_count; i++)
     {
@@ -276,15 +281,26 @@ static int unpack(char * path,char * location)
         fread(filename,1, filename_size, archieve_file_stream);
         filename[filename_size] = '\0';
     
-        size_t filesize = 0;
+        size_t file_data_size = 0;
+        fread(&file_data_size,sizeof(size_t),1,archieve_file_stream);
 
         char full_new_file_path[FILE_PATH_BUFFER];
         snprintf(full_new_file_path,FILE_PATH_BUFFER,"%s/%s", current_dir, filename);
 
-        FILE * new_file_stream = fopen(full_new_file_path,"w");
+        FILE * new_file_stream = fopen(full_new_file_path,"wb");
 
         char temp_data_buffer[UPLOAD_SIZE];
 
+        while(file_data_size > 0)
+        {
+            size_t left_size = file_data_size < UPLOAD_SIZE ? file_data_size : UPLOAD_SIZE;
+
+            fread(temp_data_buffer,1,left_size,archieve_file_stream);
+
+            fwrite(temp_data_buffer,1,left_size,new_file_stream);
+
+            file_data_size -= left_size;
+        }
 
 
         fclose(new_file_stream);
@@ -301,7 +317,7 @@ static int unpack(char * path,char * location)
 
 int main(int argc, char * argv[])
 {
-    if (argc < 4)
+    if (argc < 2)
     {
         printf("Error: insufficient argument type\n");
         return 1;
@@ -309,6 +325,12 @@ int main(int argc, char * argv[])
 
     if (strcmp(argv[1], "pack") == 0)
     {
+        if (argc < 4)
+        {
+            printf("Error: insufficient argument type\n");
+            return 1;
+        }
+
         size_t files_size = 0;
         File_data * files = NULL;
 
@@ -327,7 +349,21 @@ int main(int argc, char * argv[])
     }
     else if (strcmp(argv[1], "unpack") == 0)
     {
-        unpack("arc.myarc", get_current_filepath());
+
+        if (argc < 3)
+        {
+            printf("Error: insufficient argument type\n");
+            return 1;
+        }
+
+        char * filepath =  argv[2];
+
+        if (!check_filename_validation(filepath))
+        {
+            return 1;
+        }
+
+        unpack("package.myarc");
     }
     return 0;
 }
